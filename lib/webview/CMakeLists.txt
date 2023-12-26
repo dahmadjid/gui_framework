@@ -1,3 +1,5 @@
+# credits to https://github.com/Michaelzhouisnotwhite/webview-cmake
+
 cmake_minimum_required(VERSION 3.10)
 project(webview)
 
