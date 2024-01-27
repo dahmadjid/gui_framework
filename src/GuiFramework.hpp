@@ -1,14 +1,40 @@
 ﻿#pragma once
-#include <iostream>
+#include <chrono>
 #include <memory>
 #include <vector>
 #include <variant>
 #include <format>
+#include "webview.h"
+#ifdef _WIN32
+#include <windows.h>
+#include <dwmapi.h>
+#endif
 
 struct Div_T;
 struct Input_T;
 struct Button_T;
-using Widget = std::variant<std::unique_ptr<Div_T>, std::unique_ptr<Button_T>, std::unique_ptr<Input_T>, std::string>;
+
+struct StringifyVisitor {
+	inline std::string operator()(const std::string& s) const {
+		return s;
+	}
+	inline std::string operator()(const auto& widget) const {
+		return widget->render();
+	}
+};
+
+template<typename... Types>
+struct Widget_T: public std::variant<Types...> {
+	using std::variant<Types...>::variant;
+
+	inline std::string render() const {
+		return std::visit(StringifyVisitor{}, *this);
+	}
+};
+
+using Widget = Widget_T<std::unique_ptr<Div_T>, std::unique_ptr<Button_T>, std::unique_ptr<Input_T>, std::string>;
+
+
 
 struct WidgetList {
 	WidgetList() = default;
@@ -22,24 +48,43 @@ struct WidgetList {
 };
 
 struct Div_T {
-	static constexpr std::string_view tag_name = "div";
 	WidgetList children;
-	std::string className;
+	std::string className = "";
 	void (*onClick)(void) = nullptr;
+	inline std::string render() const {
+		std::string out;
+		for (const auto& w : this->children.data) {
+			out += w.render();
+		}
+		return std::format("<div class=\"{}\">{}</div>", this->className, out);
+	}
 };
 
 struct Button_T {
-	static constexpr std::string_view tag_name = "button";
 	WidgetList children;
-	std::string className;
+	std::string className = "";
 	void (*onClick)(void) = nullptr;
+	inline std::string render() const {
+		std::string out;
+		for (const auto& w : this->children.data) {
+			out += w.render();
+		}
+		return std::format("<button class=\"{}\">{}</button>", this->className, out);
+	}
 };
 
 struct Input_T {
 	static constexpr std::string_view tag_name = "input";
 	WidgetList children;
-	std::string className;
+	std::string className = "";
 	void (*onChange)(const std::string&) = nullptr;
+	inline std::string render() const {
+		std::string out;
+		for (const auto& w : this->children.data) {
+			out += w.render();
+		}
+		return std::format("<input class=\"{}\">{}</input>", this->className, out);
+	}
 };
 
 inline auto Div(Div_T&& d) {
@@ -54,22 +99,20 @@ inline auto Input(Input_T&& d) {
 	return std::make_unique<Input_T>(std::move(d));
 };
 
-struct StringifyVisitor {
-	std::string operator()(const std::string& s) {
-		return s;
+#include <thread>
+struct Webview {
+	webview::webview webview;
+	Webview(): webview(false, nullptr) {
+		webview.set_size(400, 400, WEBVIEW_HINT_NONE);
+		webview.set_title("Application");
 	}
-	std::string operator()(const auto& widget) {
-		std::string out = std::format("<{} class=\"{}\">\n", widget->tag_name, widget->className);
-		for (const Widget& w : widget->children.data) {
-			out += std::visit(*this, w);
-		}
-		out += std::format("\n</{}>\n", widget->tag_name);
+	void update(const Widget& component) {
+		std::string s = component.render();
+		const auto up = [this, s]{
 
-		return out;
+		};
+		std::thread t(up);
+		
 	}
 };
-
-inline std::string build_html(const Widget& w) {
-	return std::visit(StringifyVisitor{}, w);
-}
 
